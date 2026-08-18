@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.sim
+*.obj
+raw_results/*
+!raw_results/.gitkeep
+results/*
+!results/.gitkeep
+figures/*
+!figures/.gitkeep
+.DS_Store
+temp/
