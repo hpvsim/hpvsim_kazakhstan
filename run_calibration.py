@@ -22,7 +22,9 @@ reach three things the source script calibrates:
 The remaining pars (a shared beta broadcast to every genotype, and hi5/ohr
 cancer_fn.transform_prob / cin_fn.k) delegate to hpv.calibration.build_sim.
 """
+import matplotlib.pyplot as plt
 import numpy as np
+import optuna as op
 import pandas as pd
 import sciris as sc
 import starsim as ss
@@ -33,6 +35,21 @@ from hpvsim.calibration import build_sim as _default_build_sim
 
 import model as md
 
+
+# Backport stisim's crash-tolerant worker (stisim/calibration.py:585-590):
+# upstream ss.Calibration.worker calls study.optimize bare, so any worker
+# SQLite-lock error kills the whole run. TODO: PR into hpvsim.Calibration.
+def _safe_worker(self):
+    op.logging.set_verbosity(op.logging.DEBUG if self.verbose else op.logging.ERROR)
+    study = op.load_study(storage=self.run_args.storage, study_name=self.run_args.study_name,
+                          sampler=self.run_args.sampler)
+    try:
+        return study.optimize(self.run_trial, n_trials=self.run_args.n_trials, callbacks=None)
+    except Exception as e:
+        print(f'Worker failed: {e}')
+        return None
+ss.Calibration.worker = _safe_worker
+
 # Set by user before running
 to_run = [
     # 'run_calibration',   # uncomment to RUN (VM only)
@@ -41,7 +58,7 @@ to_run = [
 debug = False
 do_save = True
 n_trials = [1000, 2][debug]
-n_workers = [None, 2][debug]  # None = all available CPUs (sc.cpu_count())
+n_workers = [32, 2][debug]  # 160 deadlocked; 32 is safer on zebra
 
 GENOTYPES = ['hpv16', 'hpv18', 'hi5', 'ohr']
 CALIB_GENOTYPES = ['hi5', 'ohr']  # per-genotype progression pars calibrated (source script)
@@ -164,14 +181,41 @@ def run_calib(n_trials=None, n_workers=None, do_plot=False, do_save=True, filest
         sim, calib_pars=make_calib_pars(), build_fn=build_kazakhstan_sim,
         data=data, total_trials=n_trials, n_workers=n_workers,
     )
-    calib.calibrate()
+    try:
+        calib.calibrate()
+    except Exception as e:
+        print(f'calibrate() raised: {e}; saving partial results anyway')
+    if do_save:
+        sc.saveobj(f'raw_results/kazakhstan_calib{filestem}.obj', calib)
     if do_plot:
         fig = hpv.plot_calibration(calib)
         fig.savefig('figures/kazakhstan_calib.png')
-    if do_save:
-        sc.saveobj(f'raw_results/kazakhstan_calib{filestem}.obj', calib)
-    print(f'Best pars: {calib.best_pars}')
+    if getattr(calib, 'best_pars', None) is not None:
+        print(f'Best pars: {calib.best_pars}')
     return sim, calib
+
+
+def plot_calib_fit(calib, n=100, outpath='figures/kazakhstan_calib_fit.png'):
+    """Top-N trials -> cancers-by-age envelope vs Globocan target."""
+    n = min(n, len(calib.analyzer_results))
+    per_trial = np.array([calib.analyzer_results[pos]['cancers'][CANCER_YEAR] for pos in range(n)])
+    med = np.median(per_trial, axis=0)
+    lo = np.percentile(per_trial, 2.5, axis=0)
+    hi = np.percentile(per_trial, 97.5, axis=0)
+    target = load_cancer_data().iloc[0].to_numpy()
+    labels = _age_labels(AGE_EDGES)
+    x = np.arange(len(med))
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.plot(x, med, color='#c1981d', label=f'Model median (top {n})')
+    ax.fill_between(x, lo, hi, alpha=0.3, color='#c1981d', label='95% PI')
+    ax.scatter(x, target, marker='d', s=60, color='k', label='Globocan 2020')
+    ax.set_xticks(x, labels, rotation=45)
+    ax.set_xlabel('Age')
+    ax.set_ylabel('Cancers')
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(outpath, dpi=200)
+    return fig
 
 
 def load_calib(do_plot=True, filestem=''):
@@ -179,6 +223,9 @@ def load_calib(do_plot=True, filestem=''):
     if do_plot:
         fig = hpv.plot_calibration(calib)
         fig.savefig(f'figures/kazakhstan_calib{filestem}.png')
+        # plot_calib_fit needs calib.analyzer_results (populated by top-N re-runs),
+        # not available on the saved calib obj -- rework pending.
+        # plot_calib_fit(calib, outpath=f'figures/kazakhstan_calib_fit{filestem}.png')
     sc.save(f'results/kazakhstan_pars{filestem}.obj', calib.best_pars)
     return calib
 

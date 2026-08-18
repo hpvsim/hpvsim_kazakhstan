@@ -107,6 +107,12 @@ def make_sim(debug=0, n_agents=None, dt=None, start=1960, stop=2100,
     sim = hpv.Sim(
         location=LOCATION,
         n_agents=n_agents,
+        # hpvsim v3 does NOT auto-populate total_pop from location — sim.pars
+        # defaults total_pop=None -> pop_scale=1.0, so raw agent counts are
+        # emitted as-if 10k agents represented all of Kazakhstan. Real UN WPP
+        # 1960 (sim start) is ~9.28M; set explicitly so AgeResults counts scale
+        # to the real-world magnitude the Globocan cancer target is in.
+        total_pop=9_275_206,
         dt=dt,
         start=start,
         stop=stop,
