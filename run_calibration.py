@@ -24,7 +24,6 @@ cancer_fn.transform_prob / cin_fn.k) delegate to hpv.calibration.build_sim.
 """
 import matplotlib.pyplot as plt
 import numpy as np
-import optuna as op
 import pandas as pd
 import sciris as sc
 import starsim as ss
@@ -36,29 +35,15 @@ from hpvsim.calibration import build_sim as _default_build_sim
 import model as md
 
 
-# Backport stisim's crash-tolerant worker (stisim/calibration.py:585-590):
-# upstream ss.Calibration.worker calls study.optimize bare, so any worker
-# SQLite-lock error kills the whole run. TODO: PR into hpvsim.Calibration.
-def _safe_worker(self):
-    op.logging.set_verbosity(op.logging.DEBUG if self.verbose else op.logging.ERROR)
-    study = op.load_study(storage=self.run_args.storage, study_name=self.run_args.study_name,
-                          sampler=self.run_args.sampler)
-    try:
-        return study.optimize(self.run_trial, n_trials=self.run_args.n_trials, callbacks=None)
-    except Exception as e:
-        print(f'Worker failed: {e}')
-        return None
-ss.Calibration.worker = _safe_worker
-
 # Set by user before running
 to_run = [
-    # 'run_calibration',   # uncomment to RUN (VM only)
-    'plot_calibration',     # uncomment to PLOT/extract (local)
+    'run_calibration',   # uncomment to RUN (VM only)
+    # 'plot_calibration',     # uncomment to PLOT/extract (local)
 ]
 debug = False
 do_save = True
-n_trials = [1000, 2][debug]
-n_workers = [32, 2][debug]  # 160 deadlocked; 32 is safer on zebra
+n_trials = [5000, 2][debug]
+n_workers = [64, 2][debug]
 
 GENOTYPES = ['hpv16', 'hpv18', 'hi5', 'ohr']
 CALIB_GENOTYPES = ['hi5', 'ohr']  # per-genotype progression pars calibrated (source script)
@@ -68,7 +53,7 @@ AGE_EDGES = np.array([0, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80,
 
 
 def _age_labels(edges):
-    """Match hpv.AgeResults' own labeling exactly, so columns line up in eval_fn."""
+    """Match hpv.by_age's own labeling exactly, so columns line up in eval_fn."""
     labels = [f'{int(edges[i])}-{int(edges[i + 1])}' for i in range(len(edges) - 2)]
     labels.append(f'{int(edges[-2])}+')
     return labels
@@ -84,9 +69,7 @@ def load_cancer_data():
 
 
 def make_calib_sim(debug=0):
-    ar = hpv.AgeResults(result_args=sc.objdict(
-        cancers=sc.objdict(years=[CANCER_YEAR], edges=AGE_EDGES),
-    ))
+    ar = hpv.by_age('cancers', years=[CANCER_YEAR], edges=AGE_EDGES)
     # +1 year of margin past the target year (see hpvsim v3 migration notes on
     # under-counting a sim's final partial calendar year).
     return md.make_sim(debug=debug, stop=CANCER_YEAR + 1, analyzers=[ar])
