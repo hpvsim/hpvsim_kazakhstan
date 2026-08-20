@@ -1,58 +1,85 @@
 # hpvsim_kazakhstan
 
 An [HPVsim](https://hpvsim.org) model of cervical cancer for Kazakhstan, calibrated to
-Globocan/IARC incidence data. Built on **hpvsim v3.0**, which is rebuilt on
+Globocan/IARC incidence data. Built on **hpvsim v3.1**, which is rebuilt on
 [Starsim](https://docs.starsim.org) — see the
-[v2->v3 migration guide](https://github.com/starsimhub/hpvsim/blob/v3.0-dev/docs/migration.qmd)
+[v2→v3 migration guide](https://github.com/starsimhub/hpvsim/blob/main/docs/migration.qmd)
 for what's changed.
 
 ## Install
 
-hpvsim v3.0 has not yet been released to PyPI; install from the `v3.0-dev` branch:
+hpvsim v3.1 is not yet on PyPI; install from the release-candidate branch:
 
 ```bash
-pip install "git+https://github.com/starsimhub/hpvsim.git@v3.0-dev"
+pip install "git+https://github.com/starsimhub/hpvsim.git@rc3.1.0"
 ```
+
+Requires Python ≥ 3.10 and `starsim>=3.5`.
 
 ## What's here
 
 | File | Purpose |
 |------|---------|
-| `model.py` | Defines the Kazakhstan simulation (`make_sim`, `run_sim`) and sexual network (`make_network`). |
-| `run_calibration.py` | Calibrates the model to Kazakhstan cancer-cases-by-age data (`hpv.Calibration`). |
-| `data/` | Calibration targets (cancer cases, age-standardized incidence). |
-| `temp/` | Source materials from an earlier hpvsim v2.2.6 port (not part of the v3 model). |
+| `model.py` | Defines the Kazakhstan simulation: `network_pars()` (DHS-fitted debut, marital/casual layer probs, partner counts), `make_sim`, `run_sim`. |
+| `run_calibration.py` | Calibrates the model via `hpv.Calibration` using the v3.1 `data=` API (long-format CSVs) and nested list-leaf `calib_pars`. |
+| `utils.py` | Shared helpers for the figure scripts: `build_best_fit_sim(best_pars)` rebuilds a calibrated sim via `hpv.route_pars`; also holds age-bin constants and a WHO2000 ASR helper. |
+| `plot_figS1_behavior.py` | Sexual-behavior parameters (debut CDF, layer participation, partner-count PMF) — no sim required. |
+| `plot_figS2_calibration.py` | Calibration fit: cancers-by-age (Globocan overlay) + HPV prevalence-by-age, with a top-50-trial median + 95% PI ribbon. |
+| `plot_figS3_age_pyramids.py` | Age pyramids at snapshot years via `hpv.age_pyramid`. |
+| `plot_figS4_timeseries.py` | Long-run cancer-incidence + ASR timeseries with the top-50-trial ribbon. |
+| `plot_figS5_network.py` | Diagnostic plots of the calibrated sexual network. |
+| `data/` | Calibration targets (cancer cases by age, age-standardized incidence). |
+| `raw_results/kazakhstan_calib.obj` | Full calibration object (Optuna trials + best_pars + sim template). Tracked so collaborators without VM access can plot uncertainty ribbons + reuse top-N parameter sets. |
+| `results/kazakhstan_pars.obj` | Extracted best-fit pars dict. Tracked; loaded by `utils.build_best_fit_sim` for downstream runs. |
+| `figures/*.png` | Rendered figures — tracked for reference. |
 
-Demographics (age pyramid, births, deaths) are pulled automatically from UN WPP data
-for `location='kazakhstan'` — no local demographic data needed. Sexual network
-behaviour (debut, marital/casual partnership probabilities, partner counts) is ported
-from a DHS-fitted v2.2.6 script — see the module docstring in `model.py` for the
-per-timestep-to-annual conversion this required.
-
-Note: female casual-partnership participation in the DHS data is very low relative to
-male, and partnership formation is female-driven, so the casual layer is structurally
-thin pre-calibration — see `model.py`'s `_KAZAKHSTAN_LAYER_PROBS_PT` comment. This is a
-real feature of the data, and calibration (`m/f_cross_layer`, `m/f_partners.c` in
-`run_calibration.py`) is the intended lever, not `beta`.
+Demographics (age pyramid, births, deaths, `total_pop`) are pulled automatically from
+UN WPP data for `location='kazakhstan'`. Sexual-network parameters are DHS-fitted
+annual probabilities layered over the `hpv.NetworkPars` defaults; calibration adjusts
+`m/f_cross_layer`, casual partner counts, per-genotype natural-history pars, and
+`cross_immunity.rel_sev.loc`.
 
 ## Data provenance
 
-- `kazakhstan_cancer_cases.csv` — Globocan/IARC cervical cancer cases by age, 2020
-  (the calibration target).
-- `kazakhstan_asr_cancer_incidence.csv` — Globocan/IARC age-standardized incidence rate,
-  2020 (15.7 per 100k) — not a calibration target (age-standardization isn't one of
-  v3's `AgeResults` keys); use as an external sanity check on the calibrated fit.
+- `kazakhstan_cancer_cases.csv` — Globocan/IARC cervical cancer cases by 5-year age
+  band, 2020. Loaded as `all_hpv.cancers.<bin>` targets via the v3.1 `data=` pipeline.
+- `kazakhstan_asr_cancer_incidence.csv` — Globocan/IARC age-standardized cervical
+  cancer incidence rate (per 100k, WHO2000 world standard). Loaded as the scalar
+  target `all_hpv.asr_cancer_incidence`, which reads directly off
+  `sim.results.all_hpv.asr_cancer_incidence` (a first-class HPVTotal result in
+  v3.1 — no analyzer needed).
 
 ## How to run
 
 ```bash
-python model.py            # single baseline (uncalibrated) run + plot (local)
+# The calibration outputs (`raw_results/kazakhstan_calib.obj`,
+# `results/kazakhstan_pars.obj`) are checked into the repo, so you can
+# skip the calibration step and go straight to plotting or downstream use.
 
-# Calibration — RUN only on a multi-core VM (edit `to_run` in the file):
-python run_calibration.py  # 'plot_calibration' extracts/plots locally;
-                            # 'run_calibration' fits (VM only)
+# (Optional) re-run calibration — VM only, 1000 trials × 64 workers.
+python run_calibration.py
+
+# Figure scripts (all run locally on a laptop):
+python plot_figS1_behavior.py     # no artifacts needed
+python plot_figS2_calibration.py  # reads raw_results/kazakhstan_calib.obj
+python plot_figS3_age_pyramids.py # reads results/kazakhstan_pars.obj
+python plot_figS4_timeseries.py   # reads raw_results/kazakhstan_calib.obj
+python plot_figS5_network.py      # reads results/kazakhstan_pars.obj
+```
+
+For downstream analyses:
+
+```python
+import sciris as sc
+import hpvsim as hpv
+import model as md
+
+best_pars = sc.load('results/kazakhstan_pars.obj')
+sim = md.run_sim(pars=best_pars, stop=2040)  # or use interventions, analyzers, ...
 ```
 
 ## Status
 
-Model ported from an uncalibrated hpvsim v2.2.6 script; not yet calibrated.
+Calibrated against Globocan 2020 cancers-by-age and the WHO2000 ASR
+(15.7 per 100k) using the v3.1 `data=` pipeline with 1000 Optuna trials
+(JournalStorage backend, 64 workers).
