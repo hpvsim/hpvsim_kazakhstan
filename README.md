@@ -23,11 +23,10 @@ Requires Python ≥ 3.10 and `starsim>=3.5`.
 | `model.py` | Defines the Kazakhstan simulation: `network_pars()` (DHS-fitted debut, marital/casual layer probs, partner counts), `make_sim`, `run_sim`. |
 | `run_calibration.py` | Calibrates the model via `hpv.Calibration` using the v3.1 `data=` API (long-format CSVs) and nested list-leaf `calib_pars`. |
 | `utils.py` | Shared helpers for the figure scripts: `build_best_fit_sim(best_pars)` rebuilds a calibrated sim via `hpv.route_pars`; also holds age-bin constants and a WHO2000 ASR helper. |
-| `plot_figS1_behavior.py` | Sexual-behavior parameters (debut CDF, layer participation, partner-count PMF) — no sim required. |
+| `plot_figS1_network.py` | Sexual network: debut CDF, age-mixing heatmap, and partnership status by age (snapshot at 2020). |
 | `plot_figS2_calibration.py` | Calibration fit: cancers-by-age (Globocan overlay) + HPV prevalence-by-age, with a top-50-trial median + 95% PI ribbon. |
 | `plot_figS3_age_pyramids.py` | Age pyramids at snapshot years via `hpv.age_pyramid`. |
 | `plot_figS4_timeseries.py` | Long-run cancer-incidence + ASR timeseries with the top-50-trial ribbon. |
-| `plot_figS5_network.py` | Diagnostic plots of the calibrated sexual network. |
 | `data/` | Calibration targets (cancer cases by age, age-standardized incidence). |
 | `raw_results/kazakhstan_calib.obj` | Full calibration object (Optuna trials + best_pars + sim template). Tracked so collaborators without VM access can plot uncertainty ribbons + reuse top-N parameter sets. |
 | `results/kazakhstan_pars.obj` | Extracted best-fit pars dict. Tracked; loaded by `utils.build_best_fit_sim` for downstream runs. |
@@ -60,11 +59,10 @@ annual probabilities layered over the `hpv.NetworkPars` defaults; calibration ad
 python run_calibration.py
 
 # Figure scripts (all run locally on a laptop):
-python plot_figS1_behavior.py     # no artifacts needed
+python plot_figS1_network.py      # reads results/kazakhstan_pars.obj
 python plot_figS2_calibration.py  # reads raw_results/kazakhstan_calib.obj
 python plot_figS3_age_pyramids.py # reads results/kazakhstan_pars.obj
 python plot_figS4_timeseries.py   # reads raw_results/kazakhstan_calib.obj
-python plot_figS5_network.py      # reads results/kazakhstan_pars.obj
 ```
 
 For downstream analyses:
