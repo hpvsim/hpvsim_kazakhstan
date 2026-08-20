@@ -121,8 +121,9 @@ def run_top_n(n, sim_kwargs, analyzers_factory, extract_fn,
     ``extract_fn(sim) -> anything picklable``: runs post-sim.run().
     """
     calib = sc.load(calib_path)
-    top = calib.df.head(n)
-    par_cols = [c for c in top.columns if c not in ('index', 'mismatch')]
+    top = calib.df.nsmallest(n, 'mismatch')
+    # rand_seed is Optuna leakage when reseed=True (not calibratable).
+    par_cols = [c for c in top.columns if c not in ('index', 'mismatch', 'rand_seed')]
     par_sets = [{c: row[c] for c in par_cols} for _, row in top.iterrows()]
     if n_workers is None:
         n_workers = min(len(par_sets), sc.cpu_count())
