@@ -1,5 +1,5 @@
 """
-Define the HPVsim simulation for Kazakhstan (hpvsim v3.0).
+Define the HPVsim simulation for Kazakhstan (hpvsim v3.1).
 """
 import numpy as np
 import sciris as sc
