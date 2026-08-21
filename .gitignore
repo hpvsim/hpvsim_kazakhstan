@@ -4,10 +4,10 @@ __pycache__/
 *.obj
 raw_results/*
 !raw_results/.gitkeep
-!raw_results/kazakhstan_calib.obj
 results/*
 !results/.gitkeep
 !results/kazakhstan_pars.obj
+!results/kazakhstan_calib.obj
 figures/*
 !figures/.gitkeep
 !figures/*.png

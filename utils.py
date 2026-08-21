@@ -112,7 +112,7 @@ def _run_and_extract(pars, sim_kwargs, analyzers_factory, extract_fn):
 
 
 def run_top_n(n, sim_kwargs, analyzers_factory, extract_fn,
-              calib_path='raw_results/kazakhstan_calib.obj', n_workers=None):
+              calib_path='results/kazakhstan_calib.obj', n_workers=None):
     """Rebuild + run the top-``n`` calibration trials (sorted by mismatch)
     in parallel and return a list of ``extract_fn(sim)`` results.
 

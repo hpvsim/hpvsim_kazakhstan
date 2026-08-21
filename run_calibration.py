@@ -26,8 +26,12 @@ to_run = [
 ]
 debug = False
 do_save = True
-n_trials = [1000, 2][debug]
+n_trials = [5000, 2][debug]
 n_workers = [64, 2][debug]
+
+# Top-N trials to keep in the shrunken (committable) calib object.
+# Enough to render top-50 ribbons with headroom.
+N_KEEP = 100
 
 DATA = [
     'data/kazakhstan_cancer_cases.csv',
@@ -66,7 +70,12 @@ def run_calib(n_trials=None, n_workers=None, do_plot=False, do_save=True, filest
     except Exception as e:
         print(f'calibrate() raised: {e}; saving partial results anyway')
     if do_save:
+        # Full object (Optuna study + all trials) -> raw_results/ (gitignored).
+        # Shrunken (top-N trials only) -> results/ (committable).
         sc.saveobj(f'raw_results/kazakhstan_calib{filestem}.obj', calib)
+        shrunk = calib.shrink(n_results=N_KEEP)
+        sc.saveobj(f'results/kazakhstan_calib{filestem}.obj', shrunk)
+        sc.saveobj(f'results/kazakhstan_pars{filestem}.obj', calib.best_pars)
     if do_plot:
         fig = hpv.plot_calibration(calib)
         fig.savefig('figures/kazakhstan_calib.png')
@@ -76,11 +85,12 @@ def run_calib(n_trials=None, n_workers=None, do_plot=False, do_save=True, filest
 
 
 def load_calib(do_plot=True, filestem=''):
-    calib = sc.load(f'raw_results/kazakhstan_calib{filestem}.obj')
+    """Load the shrunken calib from results/ (committed). Full object in
+    raw_results/ is not required for plotting."""
+    calib = sc.load(f'results/kazakhstan_calib{filestem}.obj')
     if do_plot:
         fig = hpv.plot_calibration(calib)
         fig.savefig(f'figures/kazakhstan_calib{filestem}.png')
-    sc.save(f'results/kazakhstan_pars{filestem}.obj', calib.best_pars)
     return calib
 
 
